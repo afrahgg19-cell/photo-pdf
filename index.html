@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1e6b58">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="صورة PDF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>صورة إلى PDF</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600&display=swap">
+<style>
+/* Layout: one column bench. Drop zone, one editor card per photo (live preview + crop sliders), then global clarity + PDF button. */
+:root{
+  --bg:#f1f3f1;
+  --surface:#ffffff;
+  --fg:#1c2421;
+  --muted:#59675f;
+  --line:#d5dcd8;
+  --accent:#1e6b58;
+  --accent-fg:#ffffff;
+  --accent-soft:#e1efe9;
+  --warn:#9d3f28;
+  --font-display:'Reem Kufi','IBM Plex Sans Arabic',system-ui,sans-serif;
+  --font-body:'IBM Plex Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111615; --surface:#1a211f; --fg:#e5ebe8; --muted:#9aa8a1; --line:#2b3531;
+    --accent:#52bb9f; --accent-fg:#08211a; --accent-soft:#1d2e29; --warn:#e08a70;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111615; --surface:#1a211f; --fg:#e5ebe8; --muted:#9aa8a1; --line:#2b3531;
+  --accent:#52bb9f; --accent-fg:#08211a; --accent-soft:#1d2e29; --warn:#e08a70;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--font-body); font-size:16px; line-height:1.7;
+  padding-block:20px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap{max-width:920px;margin-inline:auto;display:flex;flex-direction:column;gap:20px}
+h1{font-family:var(--font-display);font-weight:600;font-size:clamp(28px,6vw,40px);line-height:1.2;margin:0;text-wrap:balance}
+h2{font-size:15px;font-weight:600;margin:0;color:var(--muted);letter-spacing:.02em}
+p{margin:0}
+.lede{color:var(--muted);max-width:60ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+
+.drop{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  min-height:110px;padding:18px;text-align:center;cursor:pointer;
+  border:2px dashed var(--line);border-radius:10px;background:var(--bg);transition:border-color .15s, background .15s;
+}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.drop input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.drop strong{font-weight:600}
+.drop small{color:var(--muted);font-size:14px}
+
+.empty{color:var(--muted);text-align:center;padding:20px 8px;font-size:15px}
+.items{display:flex;flex-direction:column;gap:16px}
+.item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:640px){ .item{grid-template-columns:minmax(0,1fr)} }
+.pv{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;justify-content:center}
+.pv canvas{max-width:100%;max-height:520px;height:auto;width:auto;display:block}
+.ctrls{display:flex;flex-direction:column;gap:10px;min-width:0}
+.ctrls .t{font-weight:600}
+.field{display:flex;flex-direction:column;gap:2px;min-width:0}
+.field label{font-size:14px}
+.field .val{color:var(--muted);font-variant-numeric:tabular-nums;margin-inline-start:6px}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0}
+select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:42px}
+
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{
+  font:inherit;font-weight:600;cursor:pointer;min-height:44px;padding:8px 16px;border-radius:8px;
+  border:1px solid var(--line);background:var(--surface);color:var(--fg);
+}
+button.small{min-height:40px;padding:6px 12px;font-size:14px}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.danger{color:var(--warn)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.grid-set{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px 20px}
+.status{color:var(--muted);font-size:14px;min-height:1.6em}
+.status.err{color:var(--warn)}
+.note{font-size:13px;color:var(--muted);max-width:62ch}
+.toast{
+  position:fixed;inset-inline:0;bottom:calc(16px + env(safe-area-inset-bottom, 0px));margin-inline:auto;width:max-content;max-width:calc(100% - 32px);
+  background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+body{margin:0}[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<main class="wrap" dir="rtl" lang="ar">
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <h1>صورة إلى PDF</h1>
+    <p class="lede">أضف صورة الورقة التي صوّرتها. تعدّل الأداة ميلان الورقة لتصير مستقيمة وتقص الجوانب وتُبقي حوافها، وتضع مربع آسيا باي في الأعلى إن وُجد، وتوضّح الكتابة قليلاً، وتحافظ على لون الورقة الطبيعي، ثم تحفظ الكل في ملف PDF. الصور لا تغادر جهازك.</p>
+  </header>
+
+  <section class="panel">
+    <h2>الصور</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/*" multiple>
+      <strong>اختر صورة أو أكثر، أو اسحبها إلى هنا</strong>
+      <small>كل صورة تصبح صفحة في الملف</small>
+    </label>
+    <div class="items" id="items"></div>
+    <p class="empty" id="empty">ستظهر هنا معاينة كل صورة مع أدوات القص.</p>
+  </section>
+
+  <section class="panel">
+    <h2>الملف النهائي</h2>
+    <div class="grid-set">
+      <div class="field">
+        <label for="clar">وضوح الكتابة <span class="val" id="clarV">40%</span></label>
+        <input type="range" id="clar" min="0" max="100" step="5" value="40">
+      </div>
+      <div class="field">
+        <label for="page">حجم الصفحة</label>
+        <select id="page">
+          <option value="a4" selected>A4 (الصورة في وسط الصفحة)</option>
+          <option value="fit">بحجم الصورة بدون هوامش</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <button class="primary" id="make" disabled>إنشاء PDF</button>
+      <span class="status" id="status" aria-live="polite">أضف صورة أولاً.</span>
+    </div>
+    <p class="note" id="hint" hidden>إذا لم يظهر خيار الحفظ على جهازك، جرّب فتح الصفحة من متصفح آخر.</p>
+  </section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var items = [], dl = null, uid = 0, raf = 0;
+  var WORK = 2600;
+
+  try {
+    if (window.claude && window.claude.use) {
+      window.claude.use('downloads').then(function(d){ dl = d; }).catch(function(){ dl = null; });
+    }
+  } catch(e){ dl = null; }
+  if (!(window.claude && window.claude.use)) {
+    dl = { save: function(o){
+      var blob = o.data instanceof Blob ? o.data : new Blob([o.data]);
+      var u = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = u; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(u); }, 60000);
+      return Promise.resolve({ status: 'saved' });
+    } };
+  }
+
+  function toast(msg){
+    var t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove('show'); }, 2800);
+  }
+  function setStatus(msg, err){ var s = $('status'); s.textContent = msg; s.classList.toggle('err', !!err); }
+  function tick(){ return new Promise(function(r){ setTimeout(r, 0); }); }
+  function strength(){ return parseInt($('clar').value, 10) / 100; }
+
+  /* ---------- image pipeline ---------- */
+  function buildRot(it){
+    var bw = it.bmp.width, bh = it.bmp.height, sc = Math.min(1, WORK / Math.max(bw, bh));
+    var sw = Math.round(bw * sc), sh = Math.round(bh * sc);
+    var swap = it.rot % 180 !== 0;
+    var c = document.createElement('canvas');
+    c.width = swap ? sh : sw; c.height = swap ? sw : sh;
+    var x = c.getContext('2d');
+    x.translate(c.width / 2, c.height / 2);
+    x.rotate(it.rot * Math.PI / 180);
+    x.drawImage(it.bmp, -sw / 2, -sh / 2, sw, sh);
+    it.rc0 = c; it.rc = c; it.ok = false;
+    if (it.straight) { var wc = straighten(c); if (wc) { it.rc = wc; it.ok = true; } }
+  }
+
+  /* ---------- straighten: find the paper's four corners and flatten them to a rectangle ---------- */
+  function smallGray(c){
+    var sc = 240 / Math.max(c.width, c.height);
+    var w = Math.max(8, Math.round(c.width * sc)), h = Math.max(8, Math.round(c.height * sc));
+    var t = document.createElement('canvas'); t.width = w; t.height = h;
+    var x = t.getContext('2d'); x.drawImage(c, 0, 0, w, h);
+    var d = x.getImageData(0, 0, w, h).data, g = new Uint8Array(w * h), hist = new Array(256).fill(0);
+    for (var i = 0; i < w * h; i++) { var v = Math.round(0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]); g[i] = v; hist[v]++; }
+    var total = w * h, sum = 0, k;
+    for (k = 0; k < 256; k++) sum += k * hist[k];
+    var sumB = 0, wB = 0, best = 0, thr = 128;
+    for (k = 0; k < 256; k++) {
+      wB += hist[k]; if (!wB) continue;
+      var wF = total - wB; if (!wF) break;
+      sumB += k * hist[k];
+      var mB = sumB / wB, mF = (sum - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > best) { best = between; thr = k; }
+    }
+    return { w: w, h: h, g: g, thr: thr, kx: c.width / w, ky: c.height / h };
+  }
+
+  function findQuad(c){
+    var s = smallGray(c), w = s.w, h = s.h, g = s.g, thr = s.thr, N = w * h;
+    var lab = new Int32Array(N), stack = new Int32Array(N), id = 0, bestCnt = 0, bestId = 0;
+    for (var i = 0; i < N; i++) {
+      if (g[i] <= thr || lab[i]) continue;
+      id++; var sp = 0, cnt = 0; stack[sp++] = i; lab[i] = id;
+      while (sp) {
+        var p = stack[--sp]; cnt++;
+        var px = p % w;
+        if (px > 0 && !lab[p - 1] && g[p - 1] > thr) { lab[p - 1] = id; stack[sp++] = p - 1; }
+        if (px < w - 1 && !lab[p + 1] && g[p + 1] > thr) { lab[p + 1] = id; stack[sp++] = p + 1; }
+        if (p >= w && !lab[p - w] && g[p - w] > thr) { lab[p - w] = id; stack[sp++] = p - w; }
+        if (p < N - w && !lab[p + w] && g[p + w] > thr) { lab[p + w] = id; stack[sp++] = p + w; }
+      }
+      if (cnt > bestCnt) { bestCnt = cnt; bestId = id; }
+    }
+    if (bestCnt < N * 0.25) return null;
+    var tl = null, br = null, tr = null, bl = null, a, b;
+    var minS = 1e9, maxS = -1e9, maxD = -1e9, minD = 1e9;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      if (lab[y * w + x] !== bestId) continue;
+      a = x + y; b = x - y;
+      if (a < minS) { minS = a; tl = [x, y]; }
+      if (a > maxS) { maxS = a; br = [x, y]; }
+      if (b > maxD) { maxD = b; tr = [x, y]; }
+      if (b < minD) { minD = b; bl = [x, y]; }
+    }
+    var q = [tl, tr, br, bl].map(function(pt){ return [(pt[0] + 0.5) * s.kx, (pt[1] + 0.5) * s.ky]; });
+    var cx = (q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, cy = (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4;
+    return q.map(function(pt){ return [cx + (pt[0] - cx) * 1.025, cy + (pt[1] - cy) * 1.025]; });
+  }
+
+  function warp(src, q){
+    var len = function(p, r){ return Math.hypot(p[0] - r[0], p[1] - r[1]); };
+    var W = (len(q[0], q[1]) + len(q[3], q[2])) / 2, H = (len(q[0], q[3]) + len(q[1], q[2])) / 2;
+    var sc = Math.min(1, WORK / Math.max(W, H));
+    W = Math.max(50, Math.round(W * sc)); H = Math.max(50, Math.round(H * sc));
+    var x0 = q[0][0], y0 = q[0][1], x1 = q[1][0], y1 = q[1][1], x2 = q[2][0], y2 = q[2][1], x3 = q[3][0], y3 = q[3][1];
+    var sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3, a11, a21, a31, a12, a22, a32, a13 = 0, a23 = 0;
+    if (Math.abs(sx) < 1e-9 && Math.abs(sy) < 1e-9) {
+      a11 = x1 - x0; a21 = x2 - x1; a31 = x0; a12 = y1 - y0; a22 = y2 - y1; a32 = y0;
+    } else {
+      var dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2, den = dx1 * dy2 - dx2 * dy1;
+      if (Math.abs(den) < 1e-9) return null;
+      a13 = (sx * dy2 - dx2 * sy) / den; a23 = (dx1 * sy - sx * dy1) / den;
+      a11 = x1 - x0 + a13 * x1; a21 = x3 - x0 + a23 * x3; a31 = x0;
+      a12 = y1 - y0 + a13 * y1; a22 = y3 - y0 + a23 * y3; a32 = y0;
+    }
+    var sw = src.width, sh = src.height;
+    var sd = src.getContext('2d').getImageData(0, 0, sw, sh).data;
+    var out = document.createElement('canvas'); out.width = W; out.height = H;
+    var octx = out.getContext('2d'), oimg = octx.createImageData(W, H), od = oimg.data;
+    for (var j = 0; j < H; j++) {
+      var v = (j + 0.5) / H;
+      for (var i = 0; i < W; i++) {
+        var u = (i + 0.5) / W, dn = a13 * u + a23 * v + 1;
+        var X = (a11 * u + a21 * v + a31) / dn, Y = (a12 * u + a22 * v + a32) / dn;
+        if (X < 0) X = 0; else if (X > sw - 1.001) X = sw - 1.001;
+        if (Y < 0) Y = 0; else if (Y > sh - 1.001) Y = sh - 1.001;
+        var xi = X | 0, yi = Y | 0, fx = X - xi, fy = Y - yi;
+        var p00 = (yi * sw + xi) * 4, p10 = p00 + 4, p01 = p00 + sw * 4, p11 = p01 + 4, o = (j * W + i) * 4;
+        for (var ch = 0; ch < 3; ch++) {
+          od[o + ch] = (sd[p00 + ch] * (1 - fx) + sd[p10 + ch] * fx) * (1 - fy) + (sd[p01 + ch] * (1 - fx) + sd[p11 + ch] * fx) * fy;
+        }
+        od[o + 3] = 255;
+      }
+    }
+    octx.putImageData(oimg, 0, 0);
+    return out;
+  }
+
+  function straighten(c){
+    var q = findQuad(c);
+    return q ? warp(c, q) : null;
+  }
+
+  /* where is the red logo block? returns the rotation that puts it at the top (0 when unknown) */
+  function logoRotation(c){
+    var sc = 200 / Math.max(c.width, c.height), w = Math.max(8, Math.round(c.width * sc)), h = Math.max(8, Math.round(c.height * sc));
+    var t = document.createElement('canvas'); t.width = w; t.height = h;
+    var x = t.getContext('2d'); x.drawImage(c, 0, 0, w, h);
+    var d = x.getImageData(0, 0, w, h).data, n = 0, mx = 0, my = 0;
+    for (var yy = 0; yy < h; yy++) for (var xx = 0; xx < w; xx++) {
+      var p = (yy * w + xx) * 4, r = d[p], g = d[p + 1], b = d[p + 2];
+      if (r > 140 && r - g > 70 && r - b > 60) { n++; mx += xx; my += yy; }
+    }
+    if (n < 0.002 * w * h) return 0;
+    var cx = mx / n / w, cy = my / n / h;
+    var dist = [cy, cx, 1 - cy, 1 - cx], rots = [0, 90, 180, 270], bi = 0;
+    for (var k = 1; k < 4; k++) if (dist[k] < dist[bi]) bi = k;
+    return rots[bi];
+  }
+
+  function enhance(ctx, w, h, s){
+    var img = ctx.getImageData(0, 0, w, h), d = img.data;
+    var c = 1 + 0.45 * s, lut = new Uint8ClampedArray(256);
+    for (var v = 0; v < 256; v++) lut[v] = (v - 128) * c + 128;
+    for (var i = 0; i < d.length; i += 4) { d[i] = lut[d[i]]; d[i + 1] = lut[d[i + 1]]; d[i + 2] = lut[d[i + 2]]; }
+    var k = 0.9 * s;
+    if (k > 0.01) {
+      var src = new Uint8ClampedArray(d), cw = 1 + 4 * k, w4 = w * 4;
+      for (var y = 1; y < h - 1; y++) {
+        for (var x = 1; x < w - 1; x++) {
+          var p = y * w4 + x * 4;
+          for (var ch = 0; ch < 3; ch++) {
+            var q = p + ch;
+            d[q] = cw * src[q] - k * (src[q - 4] + src[q + 4] + src[q - w4] + src[q + w4]);
+          }
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function cropRect(it){
+    var rc = it.rc, sx = Math.round(it.l * rc.width), sy = Math.round(it.t * rc.height);
+    var sw = rc.width - sx - Math.round(it.r * rc.width), sh = rc.height - sy - Math.round(it.b * rc.height);
+    return { sx: sx, sy: sy, sw: Math.max(sw, 20), sh: Math.max(sh, 20) };
+  }
+
+  function render(it, canvas, maxSide, s){
+    var r = cropRect(it), sc = Math.min(1, maxSide / Math.max(r.sw, r.sh));
+    canvas.width = Math.round(r.sw * sc); canvas.height = Math.round(r.sh * sc);
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(it.rc, r.sx, r.sy, r.sw, r.sh, 0, 0, canvas.width, canvas.height);
+    if (s > 0) enhance(ctx, canvas.width, canvas.height, s);
+  }
+
+  function autoCrop(it){
+    var rc = it.rc, sc = 240 / Math.max(rc.width, rc.height);
+    var w = Math.max(8, Math.round(rc.width * sc)), h = Math.max(8, Math.round(rc.height * sc));
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var x = c.getContext('2d'); x.drawImage(rc, 0, 0, w, h);
+    var d = x.getImageData(0, 0, w, h).data, g = new Uint8Array(w * h), hist = new Array(256).fill(0);
+    for (var i = 0; i < w * h; i++) { var v = Math.round(0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]); g[i] = v; hist[v]++; }
+    var total = w * h, sum = 0, t;
+    for (t = 0; t < 256; t++) sum += t * hist[t];
+    var sumB = 0, wB = 0, best = 0, thr = 128;
+    for (t = 0; t < 256; t++) {
+      wB += hist[t]; if (!wB) continue;
+      var wF = total - wB; if (!wF) break;
+      sumB += t * hist[t];
+      var mB = sumB / wB, mF = (sum - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > best) { best = between; thr = t; }
+    }
+    var rows = new Array(h).fill(0), cols = new Array(w).fill(0);
+    for (var yy = 0; yy < h; yy++) for (var xx = 0; xx < w; xx++) if (g[yy * w + xx] > thr) { rows[yy]++; cols[xx]++; }
+    var top = 0, bottom = h - 1, left = 0, right = w - 1;
+    while (top < h && rows[top] < 0.3 * w) top++;
+    while (bottom > top && rows[bottom] < 0.3 * w) bottom--;
+    while (left < w && cols[left] < 0.3 * h) left++;
+    while (right > left && cols[right] < 0.3 * h) right--;
+    if (bottom - top < h * 0.3 || right - left < w * 0.3) return false;
+    var pad = 0.006;
+    it.t = Math.max(0, top / h - pad); it.b = Math.max(0, (h - 1 - bottom) / h - pad);
+    it.l = Math.max(0, left / w - pad); it.r = Math.max(0, (w - 1 - right) / w - pad);
+    return true;
+  }
+
+  /* ---------- UI ---------- */
+  function schedule(it){
+    cancelAnimationFrame(it.raf);
+    it.raf = requestAnimationFrame(function(){ render(it, it.canvas, 900, strength()); });
+  }
+  function refreshState(){
+    $('empty').hidden = items.length > 0;
+    $('make').disabled = items.length === 0;
+    setStatus(items.length ? items.length + (items.length === 1 ? ' صورة جاهزة.' : ' صور جاهزة.') : 'أضف صورة أولاً.');
+  }
+  function slider(it, key, label){
+    var f = document.createElement('div'); f.className = 'field';
+    var id = 's' + it.id + key;
+    var lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = label;
+    var val = document.createElement('span'); val.className = 'val'; lab.appendChild(val);
+    var inp = document.createElement('input'); inp.type = 'range'; inp.id = id; inp.min = 0; inp.max = 30; inp.step = 0.5;
+    function sync(){ inp.value = (it[key] * 100).toFixed(1); val.textContent = Math.round(it[key] * 100) + '%'; }
+    inp.addEventListener('input', function(){ it[key] = parseFloat(inp.value) / 100; val.textContent = Math.round(it[key] * 100) + '%'; schedule(it); });
+    it.syncs.push(sync); sync();
+    f.appendChild(lab); f.appendChild(inp);
+    return f;
+  }
+  function addItemUI(it, name){
+    var box = document.createElement('div'); box.className = 'item';
+    var pv = document.createElement('div'); pv.className = 'pv';
+    it.canvas = document.createElement('canvas'); pv.appendChild(it.canvas);
+    var ctrls = document.createElement('div'); ctrls.className = 'ctrls';
+    var title = document.createElement('div'); title.className = 't'; title.textContent = 'الصفحة ' + (items.indexOf(it) + 1) + ' · ' + name;
+    title.style.overflowWrap = 'anywhere';
+    it.titleEl = title;
+    ctrls.appendChild(title);
+    ctrls.appendChild(slider(it, 't', 'قص من الأعلى'));
+    ctrls.appendChild(slider(it, 'b', 'قص من الأسفل'));
+    ctrls.appendChild(slider(it, 'r', 'قص من اليمين'));
+    ctrls.appendChild(slider(it, 'l', 'قص من اليسار'));
+    var row = document.createElement('div'); row.className = 'row';
+    var auto = document.createElement('button'); auto.type = 'button'; auto.className = 'small'; auto.textContent = 'قص تلقائي';
+    auto.addEventListener('click', function(){
+      if (autoCrop(it)) { it.syncs.forEach(function(f){ f(); }); schedule(it); } else toast('لم أتمكن من تحديد حدود الورقة. اضبط القص يدوياً.');
+    });
+    var rot = document.createElement('button'); rot.type = 'button'; rot.className = 'small'; rot.textContent = 'تدوير';
+    rot.addEventListener('click', function(){
+      it.rot = (it.rot + 90) % 360; it.t = it.b = it.l = it.r = 0; buildRot(it);
+      if (!it.ok) autoCrop(it);
+      it.syncs.forEach(function(f){ f(); }); schedule(it);
+    });
+    var sw = document.createElement('label'); sw.style.display = 'flex'; sw.style.gap = '8px'; sw.style.alignItems = 'center'; sw.style.fontSize = '14px';
+    var chk = document.createElement('input'); chk.type = 'checkbox'; chk.id = 'st' + it.id; chk.checked = it.straight;
+    chk.style.accentColor = 'var(--accent)'; chk.style.width = '18px'; chk.style.height = '18px';
+    sw.appendChild(chk); sw.appendChild(document.createTextNode('تعديل الاستقامة تلقائياً'));
+    chk.addEventListener('change', function(){
+      it.straight = chk.checked; it.t = it.b = it.l = it.r = 0; buildRot(it);
+      if (it.straight && !it.ok) toast('تعذّر تحديد حواف الورقة. أوقف الخيار واضبط القص يدوياً.');
+      if (!it.ok) autoCrop(it);
+      it.syncs.forEach(function(f){ f(); }); schedule(it);
+    });
+    ctrls.appendChild(sw);
+    var del = document.createElement('button'); del.type = 'button'; del.className = 'small danger'; del.textContent = 'حذف';
+    del.addEventListener('click', function(){
+      items.splice(items.indexOf(it), 1); box.remove(); if (it.bmp.close) it.bmp.close();
+      items.forEach(function(x, i){ x.titleEl.textContent = x.titleEl.textContent.replace(/^الصفحة \d+/, 'الصفحة ' + (i + 1)); });
+      refreshState();
+    });
+    row.appendChild(auto); row.appendChild(rot); row.appendChild(del);
+    ctrls.appendChild(row);
+    box.appendChild(pv); box.appendChild(ctrls);
+    $('items').appendChild(box);
+  }
+
+  async function loadBitmap(file){
+    try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch (e) {
+      return await new Promise(function(res, rej){
+        var u = URL.createObjectURL(file), im = new Image();
+        im.onload = function(){ res(im); }; im.onerror = rej; im.src = u;
+      });
+    }
+  }
+  async function addFiles(files){
+    var list = Array.prototype.filter.call(files, function(f){ return /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic)$/i.test(f.name); });
+    if (!list.length) { toast('اختر ملفات صور فقط.'); return; }
+    setStatus('جارٍ تحميل الصور…');
+    for (var i = 0; i < list.length; i++) {
+      try {
+        var bmp = await loadBitmap(list[i]);
+        var it = { id: ++uid, bmp: bmp, rot: 0, straight: true, t: 0, b: 0, l: 0, r: 0, syncs: [] };
+        buildRot(it);
+        if (it.ok) {
+          var extra = logoRotation(it.rc);
+          if (extra) { it.rot = extra; buildRot(it); }
+        }
+        if (!it.ok) autoCrop(it);
+        items.push(it);
+        addItemUI(it, list[i].name);
+        render(it, it.canvas, 900, strength());
+        await tick();
+      } catch (e) { toast('تعذّر فتح الصورة ' + list[i].name); }
+    }
+    refreshState();
+  }
+
+  /* ---------- PDF ---------- */
+  /* PDFBUILD START */
+  function dataUrlToBytes(u){
+    var b = atob(u.split(',')[1]), a = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
+    return a;
+  }
+  function buildPdf(pages){
+    var enc = new TextEncoder(), chunks = [], offs = [], len = 0;
+    function f(n){ return n.toFixed(2); }
+    function push(x){ var u = typeof x === 'string' ? enc.encode(x) : x; chunks.push(u); len += u.length; }
+    function obj(n, body){ offs[n] = len; push(n + ' 0 obj\n'); push(body); push('\nendobj\n'); }
+    var N = pages.length;
+    push('%PDF-1.4\n%âãÏÓ\n');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [' + pages.map(function(p, i){ return (3 + 3 * i) + ' 0 R'; }).join(' ') + '] /Count ' + N + ' >>');
+    pages.forEach(function(p, i){
+      var pid = 3 + 3 * i, cid = pid + 1, iid = pid + 2;
+      obj(pid, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f(p.pw) + ' ' + f(p.ph) + '] /Resources << /XObject << /Im0 ' + iid + ' 0 R >> >> /Contents ' + cid + ' 0 R >>');
+      var content = 'q ' + f(p.w) + ' 0 0 ' + f(p.h) + ' ' + f(p.x) + ' ' + f(p.y) + ' cm /Im0 Do Q';
+      obj(cid, '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
+      offs[iid] = len;
+      push(iid + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + p.iw + ' /Height ' + p.ih + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.jpg.length + ' >>\nstream\n');
+      push(p.jpg);
+      push('\nendstream\nendobj\n');
+    });
+    var total = 3 + 3 * N, xref = len, s = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+    for (var n = 1; n < total; n++) s += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
+    s += 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+    push(s);
+    return new Blob(chunks, { type: 'application/pdf' });
+  }
+  /* PDFBUILD END */
+
+  async function makePdf(){
+    if (!items.length) return;
+    $('make').disabled = true;
+    var mode = $('page').value, s = strength(), pages = [];
+    try {
+      for (var i = 0; i < items.length; i++) {
+        setStatus('جارٍ تجهيز الصفحة ' + (i + 1) + ' من ' + items.length + '…');
+        await tick();
+        var cv = document.createElement('canvas');
+        render(items[i], cv, WORK, s);
+        var iw = cv.width, ih = cv.height, pw, ph, x = 0, y = 0, w, h;
+        if (mode === 'a4') {
+          var land = iw > ih; pw = land ? 841.89 : 595.28; ph = land ? 595.28 : 841.89;
+          var sc = Math.min(pw / iw, ph / ih); w = iw * sc; h = ih * sc; x = (pw - w) / 2; y = (ph - h) / 2;
+        } else { pw = 595.28; ph = 595.28 * ih / iw; w = pw; h = ph; }
+        pages.push({ jpg: dataUrlToBytes(cv.toDataURL('image/jpeg', 0.9)), iw: iw, ih: ih, pw: pw, ph: ph, x: x, y: y, w: w, h: h });
+        cv.width = 0;
+      }
+      var blob = buildPdf(pages);
+      try { await dl.save({ filename: 'document.pdf', data: blob }); setStatus('تم إنشاء الملف. إن لم يبدأ التنزيل فتحقق من مجلد التنزيلات.'); toast('تم الحفظ'); }
+      catch (e) { setStatus('تعذّر حفظ الملف في هذا المتصفح.', true); }
+    } catch (e) { setStatus('حدث خطأ أثناء إنشاء الملف. جرّب بصور أقل.', true); }
+    $('make').disabled = items.length === 0;
+  }
+
+  /* ---------- wiring ---------- */
+  $('file').addEventListener('change', function(e){ addFiles(e.target.files); e.target.value = ''; });
+  var drop = $('drop');
+  ['dragenter', 'dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function(e){ if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+  $('clar').addEventListener('input', function(){
+    $('clarV').textContent = this.value + '%';
+    items.forEach(schedule);
+  });
+  $('make').addEventListener('click', makePdf);
+  refreshState();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>
