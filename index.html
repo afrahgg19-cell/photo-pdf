@@ -105,7 +105,7 @@ body{margin:0}[hidden]{display:none!important}
 <main class="wrap" dir="rtl" lang="ar">
   <header style="display:flex;flex-direction:column;gap:10px">
     <h1>صورة إلى PDF</h1>
-    <p class="lede">أضف صورة الورقة التي صوّرتها. تعدّل الأداة ميلان الورقة لتصير مستقيمة وتقص الجوانب وتُبقي حوافها، وتضع مربع آسيا باي في الأعلى إن وُجد، وتوضّح الكتابة قليلاً، وتحافظ على لون الورقة الطبيعي، ثم تحفظ الكل في ملف PDF. الصور لا تغادر جهازك.</p>
+    <p class="lede">أضف صورة الورقة أو المستمسك الذي صوّرته. للمستمسكات اختر «مستمسك أو صورة طبيعية» فتبقى الصورة كما هي بكل ما حولها وتوضع في وسط الصفحة. تعدّل الأداة ميلان الورقة لتصير مستقيمة وتقص الجوانب وتُبقي حوافها، وتضع مربع آسيا باي في الأعلى إن وُجد، وتوضّح الكتابة قليلاً، وتحافظ على لون الورقة الطبيعي، ثم تحفظ الكل في ملف PDF. الصور لا تغادر جهازك.</p>
   </header>
 
   <section class="panel">
@@ -122,6 +122,13 @@ body{margin:0}[hidden]{display:none!important}
   <section class="panel">
     <h2>الملف النهائي</h2>
     <div class="grid-set">
+      <div class="field">
+        <label for="kind">نوع الصورة</label>
+        <select id="kind">
+          <option value="paper" selected>ورقة: قص واستقامة وتوضيح</option>
+          <option value="id">مستمسك أو صورة طبيعية: بدون قص، في وسط الصفحة</option>
+        </select>
+      </div>
       <div class="field">
         <label for="clar">وضوح الكتابة <span class="val" id="clarV">40%</span></label>
         <input type="range" id="clar" min="0" max="100" step="5" value="40">
@@ -170,7 +177,8 @@ body{margin:0}[hidden]{display:none!important}
   }
   function setStatus(msg, err){ var s = $('status'); s.textContent = msg; s.classList.toggle('err', !!err); }
   function tick(){ return new Promise(function(r){ setTimeout(r, 0); }); }
-  function strength(){ return parseInt($('clar').value, 10) / 100; }
+  function strength(){ return $('kind').value === 'id' ? 0 : parseInt($('clar').value, 10) / 100; }
+  function defaultCrop(it){ if (!it.ok && $('kind').value === 'paper') autoCrop(it); }
 
   /* ---------- image pipeline ---------- */
   function buildRot(it){
@@ -410,17 +418,18 @@ body{margin:0}[hidden]{display:none!important}
     var rot = document.createElement('button'); rot.type = 'button'; rot.className = 'small'; rot.textContent = 'تدوير';
     rot.addEventListener('click', function(){
       it.rot = (it.rot + 90) % 360; it.t = it.b = it.l = it.r = 0; buildRot(it);
-      if (!it.ok) autoCrop(it);
+      defaultCrop(it);
       it.syncs.forEach(function(f){ f(); }); schedule(it);
     });
     var sw = document.createElement('label'); sw.style.display = 'flex'; sw.style.gap = '8px'; sw.style.alignItems = 'center'; sw.style.fontSize = '14px';
     var chk = document.createElement('input'); chk.type = 'checkbox'; chk.id = 'st' + it.id; chk.checked = it.straight;
     chk.style.accentColor = 'var(--accent)'; chk.style.width = '18px'; chk.style.height = '18px';
+    it.chk = chk;
     sw.appendChild(chk); sw.appendChild(document.createTextNode('تعديل الاستقامة تلقائياً'));
     chk.addEventListener('change', function(){
       it.straight = chk.checked; it.t = it.b = it.l = it.r = 0; buildRot(it);
       if (it.straight && !it.ok) toast('تعذّر تحديد حواف الورقة. أوقف الخيار واضبط القص يدوياً.');
-      if (!it.ok) autoCrop(it);
+      defaultCrop(it);
       it.syncs.forEach(function(f){ f(); }); schedule(it);
     });
     ctrls.appendChild(sw);
@@ -452,13 +461,13 @@ body{margin:0}[hidden]{display:none!important}
     for (var i = 0; i < list.length; i++) {
       try {
         var bmp = await loadBitmap(list[i]);
-        var it = { id: ++uid, bmp: bmp, rot: 0, straight: true, t: 0, b: 0, l: 0, r: 0, syncs: [] };
+        var it = { id: ++uid, bmp: bmp, rot: 0, straight: $('kind').value !== 'id', t: 0, b: 0, l: 0, r: 0, syncs: [] };
         buildRot(it);
         if (it.ok) {
           var extra = logoRotation(it.rc);
           if (extra) { it.rot = extra; buildRot(it); }
         }
-        if (!it.ok) autoCrop(it);
+        defaultCrop(it);
         items.push(it);
         addItemUI(it, list[i].name);
         render(it, it.canvas, 900, strength());
@@ -514,8 +523,10 @@ body{margin:0}[hidden]{display:none!important}
         render(items[i], cv, WORK, s);
         var iw = cv.width, ih = cv.height, pw, ph, x = 0, y = 0, w, h;
         if (mode === 'a4') {
-          var land = iw > ih; pw = land ? 841.89 : 595.28; ph = land ? 595.28 : 841.89;
-          var sc = Math.min(pw / iw, ph / ih); w = iw * sc; h = ih * sc; x = (pw - w) / 2; y = (ph - h) / 2;
+          var idk = $('kind').value === 'id';
+          var land = !idk && iw > ih; pw = land ? 841.89 : 595.28; ph = land ? 595.28 : 841.89;
+          var fit = idk ? 0.92 : 1;
+          var sc = Math.min(pw * fit / iw, ph * fit / ih); w = iw * sc; h = ih * sc; x = (pw - w) / 2; y = (ph - h) / 2;
         } else { pw = 595.28; ph = 595.28 * ih / iw; w = pw; h = ph; }
         pages.push({ jpg: dataUrlToBytes(cv.toDataURL('image/jpeg', 0.9)), iw: iw, ih: ih, pw: pw, ph: ph, x: x, y: y, w: w, h: h });
         cv.width = 0;
@@ -533,6 +544,15 @@ body{margin:0}[hidden]{display:none!important}
   ['dragenter', 'dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
   ['dragleave', 'drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
   drop.addEventListener('drop', function(e){ if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+  $('kind').addEventListener('change', function(){
+    var idMode = this.value === 'id';
+    $('clar').disabled = idMode;
+    items.forEach(function(it){
+      it.straight = !idMode; if (it.chk) it.chk.checked = it.straight;
+      it.t = it.b = it.l = it.r = 0; buildRot(it); defaultCrop(it);
+      it.syncs.forEach(function(f){ f(); }); schedule(it);
+    });
+  });
   $('clar').addEventListener('input', function(){
     $('clarV').textContent = this.value + '%';
     items.forEach(schedule);
