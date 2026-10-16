@@ -96,6 +96,27 @@ button:disabled{opacity:.45;cursor:not-allowed}
   background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;
 }
 .toast.show{opacity:1}
+.view{display:flex;flex-direction:column;gap:20px;min-width:0}
+.tabs{display:flex;flex-wrap:wrap;gap:8px}
+.tabs button{border-radius:999px;min-height:42px;padding:6px 18px}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+input[type=text]{
+  font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;min-height:42px;width:100%;
+}
+input[type=text]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.flist{display:flex;flex-direction:column;gap:8px}
+.frow{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--bg)}
+.frow .nm{min-width:0;flex:1 1 200px;overflow-wrap:anywhere}
+.frow .meta{color:var(--muted);font-size:13px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:12px}
+.pcard{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pcard img,.pcard .ph{width:100%;height:auto;border:1px solid var(--line);border-radius:6px;background:#fff;display:block}
+.pcard .ph{aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;background:var(--bg)}
+.pcard .cap{font-size:13px;display:flex;justify-content:space-between;gap:6px;color:var(--muted)}
+.pcard .bar{display:flex;gap:6px}
+.pcard .bar button{min-height:36px;padding:4px 8px;font-size:13px;flex:1}
+.badge{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:0 8px;font-size:12px}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 body{margin:0}[hidden]{display:none!important}
 </style>
@@ -105,11 +126,19 @@ body{margin:0}[hidden]{display:none!important}
 <main class="wrap" dir="rtl" lang="ar">
   <header style="display:flex;flex-direction:column;gap:10px">
     <h1>صورة إلى PDF</h1>
-    <p class="lede">أضف صورة الورقة أو المستمسك الذي صوّرته. للمستمسكات اختر «مستمسك أو صورة طبيعية» فتبقى الصورة كما هي بكل ما حولها وتوضع في وسط الصفحة. تعدّل الأداة ميلان الورقة لتصير مستقيمة وتقص الجوانب وتُبقي حوافها، وتضع مربع آسيا باي في الأعلى إن وُجد، وتوضّح الكتابة قليلاً، وتحافظ على لون الورقة الطبيعي، ثم تحفظ الكل في ملف PDF. الصور لا تغادر جهازك.</p>
+    <p class="lede">ثلاث أدوات تعمل داخل جهازك بدون رفع أي ملف: تحويل الصور إلى PDF، ودمج ملفات PDF، وتعديل ملف PDF موجود.</p>
   </header>
 
+  <div class="tabs" role="tablist" aria-label="الأدوات">
+    <button type="button" role="tab" data-tab="photo" aria-selected="true">صور إلى PDF</button>
+    <button type="button" role="tab" data-tab="merge" aria-selected="false">دمج ملفات</button>
+    <button type="button" role="tab" data-tab="edit" aria-selected="false">تعديل PDF</button>
+  </div>
+
+  <div class="view" id="view-photo">
   <section class="panel">
     <h2>الصور</h2>
+    <p class="note">للأوراق تعدّل الأداة الميلان وتقص الجوانب وتُبقي الحواف وتوضّح الكتابة وتحافظ على لون الورقة. للمستمسكات اختر «مستمسك أو صورة طبيعية» فتبقى الصورة كما هي بكل ما حولها وتوضع في وسط الصفحة.</p>
     <label class="drop" id="drop">
       <input type="file" id="file" accept="image/*" multiple>
       <strong>اختر صورة أو أكثر، أو اسحبها إلى هنا</strong>
@@ -122,6 +151,10 @@ body{margin:0}[hidden]{display:none!important}
   <section class="panel">
     <h2>الملف النهائي</h2>
     <div class="grid-set">
+      <div class="field">
+        <label for="pName">اسم الملف</label>
+        <input type="text" id="pName" value="document" autocomplete="off">
+      </div>
       <div class="field">
         <label for="kind">نوع الصورة</label>
         <select id="kind">
@@ -147,6 +180,71 @@ body{margin:0}[hidden]{display:none!important}
     </div>
     <p class="note" id="hint" hidden>إذا لم يظهر خيار الحفظ على جهازك، جرّب فتح الصفحة من متصفح آخر.</p>
   </section>
+  </div>
+
+  <div class="view" id="view-merge" hidden>
+    <section class="panel">
+      <h2>ملفات PDF</h2>
+      <p class="note">اختر الملفات من جهازك ثم رتّبها. المتصفح لا يسمح للصفحة بفحص الجهاز بنفسها، لذلك تختار الملفات بيدك، وعلى الهاتف تفتح نافذة الاختيار كل ملفات PDF المحفوظة.</p>
+      <label class="drop" id="mDrop">
+        <input type="file" id="mFile" accept="application/pdf,.pdf" multiple>
+        <strong>اختر ملفات PDF أو اسحبها إلى هنا</strong>
+        <small>يمكنك اختيار عدة ملفات دفعة واحدة</small>
+      </label>
+      <div class="row"><button type="button" id="mFolder" hidden>إضافة كل ملفات PDF من مجلد</button></div>
+      <div class="flist" id="mList"></div>
+    </section>
+    <section class="panel">
+      <h2>الملف الناتج</h2>
+      <div class="grid-set">
+        <div class="field">
+          <label for="mName">اسم الملف</label>
+          <input type="text" id="mName" value="merged" autocomplete="off">
+        </div>
+      </div>
+      <div class="row">
+        <button class="primary" type="button" id="mGo" disabled>دمج وحفظ</button>
+        <span class="status" id="mStatus" aria-live="polite">اختر ملفين على الأقل.</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="view" id="view-edit" hidden>
+    <section class="panel">
+      <h2>الملف</h2>
+      <label class="drop" id="eDrop">
+        <input type="file" id="eFile" accept="application/pdf,.pdf">
+        <strong>اختر ملف PDF لتعديله أو اسحبه إلى هنا</strong>
+        <small id="eInfo">تظهر صفحاته بعد الاختيار</small>
+      </label>
+    </section>
+    <section class="panel">
+      <h2>الصفحات</h2>
+      <div class="row">
+        <button type="button" id="eAddBtn">إضافة صور كصفحات</button>
+        <input type="file" id="eImgs" accept="image/*" multiple hidden>
+        <select id="eFit" aria-label="مكان الصورة في الصفحة المضافة">
+          <option value="0.92" selected>الصورة المضافة في وسط الصفحة</option>
+          <option value="1">الصورة المضافة تملأ الصفحة</option>
+        </select>
+      </div>
+      <p class="empty" id="eEmpty">اختر ملف PDF أو أضف صوراً لتظهر الصفحات هنا.</p>
+      <div class="pgrid" id="eGrid"></div>
+    </section>
+    <section class="panel">
+      <h2>الملف الناتج</h2>
+      <div class="grid-set">
+        <div class="field">
+          <label for="eName">اسم الملف</label>
+          <input type="text" id="eName" value="edited" autocomplete="off">
+        </div>
+      </div>
+      <div class="row">
+        <button class="primary" type="button" id="eGo" disabled>حفظ التعديل</button>
+        <span class="status" id="eStatus" aria-live="polite"></span>
+      </div>
+    </section>
+  </div>
 </main>
 <div class="toast" id="toast" role="status"></div>
 
@@ -532,7 +630,7 @@ body{margin:0}[hidden]{display:none!important}
         cv.width = 0;
       }
       var blob = buildPdf(pages);
-      try { await dl.save({ filename: 'document.pdf', data: blob }); setStatus('تم إنشاء الملف. إن لم يبدأ التنزيل فتحقق من مجلد التنزيلات.'); toast('تم الحفظ'); }
+      try { await dl.save({ filename: outName('pName', 'document'), data: blob }); setStatus('تم إنشاء الملف. إن لم يبدأ التنزيل فتحقق من مجلد التنزيلات.'); toast('تم الحفظ'); }
       catch (e) { setStatus('تعذّر حفظ الملف في هذا المتصفح.', true); }
     } catch (e) { setStatus('حدث خطأ أثناء إنشاء الملف. جرّب بصور أقل.', true); }
     $('make').disabled = items.length === 0;
@@ -558,6 +656,234 @@ body{margin:0}[hidden]{display:none!important}
     items.forEach(schedule);
   });
   $('make').addEventListener('click', makePdf);
+  /* ================= merge and edit tools ================= */
+  var PDFLIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+  var PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  var PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var libP = {};
+
+  function loadScript(src){
+    return new Promise(function(res, rej){
+      var s = document.createElement('script'); s.src = src; s.onload = res;
+      s.onerror = function(){ rej(new Error('load failed')); };
+      document.head.appendChild(s);
+    });
+  }
+  function ensurePdfLib(){
+    if (window.PDFLib) return Promise.resolve();
+    if (!libP.lib) libP.lib = loadScript(PDFLIB_URL).catch(function(e){ libP.lib = null; throw e; });
+    return libP.lib;
+  }
+  function ensurePdfJs(){
+    function ready(){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; }
+    if (window.pdfjsLib) { ready(); return Promise.resolve(); }
+    if (!libP.js) libP.js = loadScript(PDFJS_URL).then(ready).catch(function(e){ libP.js = null; throw e; });
+    return libP.js;
+  }
+  function outName(id, fallback){
+    var v = ($(id).value || '').replace(/[\\\/:*?"<>|]/g, '').trim().replace(/\.pdf$/i, '').trim();
+    return (v || fallback) + '.pdf';
+  }
+  function fmtSize(n){ return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  async function savePdfFile(blob, name){
+    if (!dl) { toast('الحفظ المباشر غير متاح هنا.'); return false; }
+    try { await dl.save({ filename: name, data: blob }); toast('تم الحفظ'); return true; }
+    catch (e) { if (!(e && e.code === 'declined')) toast('تعذّر الحفظ في هذا المتصفح.'); return false; }
+  }
+  function smallBtn(text, onClick, disabled){
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'small'; b.textContent = text;
+    b.disabled = !!disabled; b.addEventListener('click', onClick); return b;
+  }
+  function wireDrop(zoneId, handler){
+    var z = $(zoneId);
+    ['dragenter', 'dragover'].forEach(function(ev){ z.addEventListener(ev, function(e){ e.preventDefault(); z.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function(ev){ z.addEventListener(ev, function(e){ e.preventDefault(); z.classList.remove('over'); }); });
+    z.addEventListener('drop', function(e){ if (e.dataTransfer && e.dataTransfer.files.length) handler(e.dataTransfer.files); });
+  }
+
+  /* ---- tabs ---- */
+  var views = { photo: $('view-photo'), merge: $('view-merge'), edit: $('view-edit') };
+  var tabBtns = document.querySelectorAll('.tabs button');
+  Array.prototype.forEach.call(tabBtns, function(b){
+    b.addEventListener('click', function(){
+      Object.keys(views).forEach(function(k){ views[k].hidden = k !== b.getAttribute('data-tab'); });
+      Array.prototype.forEach.call(tabBtns, function(x){ x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+    });
+  });
+
+  /* ---- merge ---- */
+  var mItems = [], mUid = 0;
+  function mStatus(msg, err){ var s = $('mStatus'); s.textContent = msg; s.classList.toggle('err', !!err); }
+  function mRender(){
+    var box = $('mList'); box.innerHTML = '';
+    mItems.forEach(function(it, i){
+      var row = document.createElement('div'); row.className = 'frow';
+      var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = (i + 1) + '. ' + it.name;
+      var meta = document.createElement('span'); meta.className = 'meta'; meta.textContent = it.pages + ' صفحة · ' + fmtSize(it.bytes.length);
+      var bar = document.createElement('div'); bar.className = 'row';
+      bar.appendChild(smallBtn('تقديم', function(){ var t = mItems[i - 1]; mItems[i - 1] = mItems[i]; mItems[i] = t; mRender(); }, i === 0));
+      bar.appendChild(smallBtn('تأخير', function(){ var t = mItems[i + 1]; mItems[i + 1] = mItems[i]; mItems[i] = t; mRender(); }, i === mItems.length - 1));
+      var del = smallBtn('حذف', function(){ mItems.splice(i, 1); mRender(); }); del.className = 'small danger'; bar.appendChild(del);
+      row.appendChild(nm); row.appendChild(meta); row.appendChild(bar);
+      box.appendChild(row);
+    });
+    $('mGo').disabled = mItems.length < 2;
+    mStatus(mItems.length < 2 ? 'اختر ملفين على الأقل.' : mItems.length + ' ملفات جاهزة للدمج.');
+  }
+  async function mAdd(files){
+    var list = Array.prototype.filter.call(files, function(f){ return /\.pdf$/i.test(f.name) || f.type === 'application/pdf'; });
+    if (!list.length) { toast('اختر ملفات PDF فقط.'); return; }
+    mStatus('جارٍ قراءة الملفات…');
+    try { await ensurePdfLib(); } catch (e) { mStatus('تعذّر تحميل مكتبة الدمج. تحقق من الاتصال بالإنترنت.', true); return; }
+    for (var i = 0; i < list.length; i++) {
+      try {
+        var bytes = new Uint8Array(await list[i].arrayBuffer());
+        var doc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+        mItems.push({ id: ++mUid, name: list[i].name, bytes: bytes, pages: doc.getPageCount() });
+      } catch (e) { toast('تعذّرت قراءة ' + list[i].name); }
+    }
+    mRender();
+  }
+  async function mMerge(){
+    var btn = $('mGo'); btn.disabled = true;
+    try {
+      var out = await PDFLib.PDFDocument.create();
+      for (var i = 0; i < mItems.length; i++) {
+        mStatus('جارٍ دمج الملف ' + (i + 1) + ' من ' + mItems.length + '…');
+        await tick();
+        var src = await PDFLib.PDFDocument.load(mItems[i].bytes, { ignoreEncryption: true });
+        var pages = await out.copyPages(src, src.getPageIndices());
+        pages.forEach(function(p){ out.addPage(p); });
+      }
+      var bytes = await out.save();
+      var ok = await savePdfFile(new Blob([bytes], { type: 'application/pdf' }), outName('mName', 'merged'));
+      mStatus(ok ? 'تم دمج الملفات وحفظ الناتج.' : 'تم الدمج لكن الملف لم يُحفظ. اضغط دمج وحفظ للمحاولة مرة أخرى.');
+    } catch (e) { mStatus('تعذّر دمج الملفات. قد يكون أحدها محمياً أو تالفاً.', true); }
+    btn.disabled = mItems.length < 2;
+  }
+  $('mFile').addEventListener('change', function(e){ mAdd(e.target.files); e.target.value = ''; });
+  wireDrop('mDrop', mAdd);
+  $('mGo').addEventListener('click', mMerge);
+  if (window.showDirectoryPicker) {
+    $('mFolder').hidden = false;
+    $('mFolder').addEventListener('click', async function(){
+      try {
+        var dir = await window.showDirectoryPicker(), found = [];
+        for await (var entry of dir.entries()) {
+          if (entry[1].kind === 'file' && /\.pdf$/i.test(entry[0])) found.push(await entry[1].getFile());
+        }
+        if (!found.length) { toast('لا توجد ملفات PDF في هذا المجلد.'); return; }
+        mAdd(found);
+      } catch (e) { if (!(e && e.name === 'AbortError')) toast('تصفح المجلدات غير متاح هنا. استخدم زر اختيار الملفات.'); }
+    });
+  }
+  mRender();
+
+  /* ---- edit ---- */
+  var eBytes = null, eEntries = [], eUid = 0;
+  function eStatus(msg, err){ var s = $('eStatus'); s.textContent = msg; s.classList.toggle('err', !!err); }
+  function eRender(){
+    var grid = $('eGrid'); grid.innerHTML = '';
+    $('eEmpty').hidden = eEntries.length > 0;
+    $('eGo').disabled = eEntries.length === 0;
+    eEntries.forEach(function(en, i){
+      var card = document.createElement('div'); card.className = 'pcard';
+      if (en.thumb) { var im = document.createElement('img'); im.src = en.thumb; im.alt = 'صفحة ' + (i + 1); card.appendChild(im); }
+      else { var ph = document.createElement('div'); ph.className = 'ph'; ph.textContent = 'معاينة غير متاحة'; card.appendChild(ph); }
+      var cap = document.createElement('div'); cap.className = 'cap';
+      var n = document.createElement('span'); n.textContent = 'الصفحة ' + (i + 1); cap.appendChild(n);
+      if (en.kind === 'img') { var bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = 'مضافة'; cap.appendChild(bd); }
+      var bar = document.createElement('div'); bar.className = 'bar';
+      var up = smallBtn('تقديم', function(){ var t = eEntries[i - 1]; eEntries[i - 1] = eEntries[i]; eEntries[i] = t; eRender(); }, i === 0);
+      var dn = smallBtn('تأخير', function(){ var t = eEntries[i + 1]; eEntries[i + 1] = eEntries[i]; eEntries[i] = t; eRender(); }, i === eEntries.length - 1);
+      var rm = smallBtn('حذف', function(){ eEntries.splice(i, 1); eRender(); }); rm.className = 'small danger';
+      bar.appendChild(up); bar.appendChild(dn); bar.appendChild(rm);
+      card.appendChild(cap); card.appendChild(bar);
+      grid.appendChild(card);
+    });
+  }
+  async function pageThumb(pdf, i){
+    var page = await pdf.getPage(i), vp = page.getViewport({ scale: 1 }), v = page.getViewport({ scale: 220 / vp.width });
+    var c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height);
+    await page.render({ canvasContext: c.getContext('2d'), viewport: v, background: '#ffffff' }).promise;
+    var u = c.toDataURL('image/jpeg', 0.7); c.width = 0; return u;
+  }
+  async function eLoad(files){
+    var file = files && files[0];
+    if (!file) return;
+    $('eInfo').textContent = 'جارٍ قراءة الملف…';
+    try { await ensurePdfLib(); } catch (e) { $('eInfo').textContent = 'تعذّر تحميل مكتبة PDF. تحقق من الاتصال بالإنترنت.'; return; }
+    var pdfjsOk = true;
+    try { await ensurePdfJs(); } catch (e) { pdfjsOk = false; }
+    try {
+      var bytes = new Uint8Array(await file.arrayBuffer());
+      var doc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+      var n = doc.getPageCount(), pdf = null;
+      if (pdfjsOk) { try { pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise; } catch (e) { pdf = null; } }
+      var added = eEntries.filter(function(x){ return x.kind === 'img'; });
+      eBytes = bytes; eEntries = [];
+      for (var i = 1; i <= n; i++) {
+        var thumb = '';
+        if (pdf) { try { thumb = await pageThumb(pdf, i); } catch (e) { thumb = ''; } }
+        eEntries.push({ id: ++eUid, kind: 'pdf', idx: i - 1, thumb: thumb });
+        if (i % 6 === 0 || i === n) { $('eInfo').textContent = 'جارٍ تحضير الصفحات ' + i + ' من ' + n + '…'; eRender(); await tick(); }
+      }
+      eEntries = eEntries.concat(added);
+      $('eName').value = file.name.replace(/\.pdf$/i, '') + '_edited';
+      $('eInfo').textContent = file.name + ' · ' + n + ' صفحة · اضغط لاختيار ملف آخر';
+      eRender(); eStatus('');
+    } catch (e) { $('eInfo').textContent = 'تعذّرت قراءة هذا الملف. قد يكون محمياً أو تالفاً.'; }
+  }
+  async function eAddImages(files){
+    var list = Array.prototype.filter.call(files, function(f){ return /^image\//.test(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name); });
+    if (!list.length) { toast('اختر ملفات صور فقط.'); return; }
+    for (var i = 0; i < list.length; i++) {
+      try {
+        var bmp = await loadBitmap(list[i]);
+        var sc = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+        var c = document.createElement('canvas'); c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+        var cx = c.getContext('2d'); cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(bmp, 0, 0, c.width, c.height);
+        var blob = await new Promise(function(res){ c.toBlob(res, 'image/jpeg', 0.92); });
+        var bytes = new Uint8Array(await blob.arrayBuffer());
+        var t = document.createElement('canvas'), ts = 220 / c.width; t.width = 220; t.height = Math.max(1, Math.round(c.height * ts));
+        t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+        eEntries.push({ id: ++eUid, kind: 'img', bytes: bytes, thumb: t.toDataURL('image/jpeg', 0.7) });
+        c.width = 0;
+      } catch (e) { toast('تعذّر فتح الصورة ' + list[i].name); }
+    }
+    eRender();
+  }
+  async function eSave(){
+    if (!eEntries.length) { toast('لا توجد صفحات للحفظ.'); return; }
+    var btn = $('eGo'); btn.disabled = true; eStatus('جارٍ إنشاء الملف…');
+    try {
+      await ensurePdfLib();
+      var out = await PDFLib.PDFDocument.create(), src = null, fit = parseFloat($('eFit').value) || 0.92;
+      for (var i = 0; i < eEntries.length; i++) {
+        var en = eEntries[i];
+        if (en.kind === 'pdf') {
+          if (!src) src = await PDFLib.PDFDocument.load(eBytes, { ignoreEncryption: true });
+          var cp = await out.copyPages(src, [en.idx]); out.addPage(cp[0]);
+        } else {
+          var img = await out.embedJpg(en.bytes), pw = 595.28, ph = 841.89;
+          var sc = Math.min(pw * fit / img.width, ph * fit / img.height), w = img.width * sc, h = img.height * sc;
+          var pg = out.addPage([pw, ph]); pg.drawImage(img, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+        }
+        if (i % 5 === 4) await tick();
+      }
+      var bytes = await out.save();
+      var ok = await savePdfFile(new Blob([bytes], { type: 'application/pdf' }), outName('eName', 'edited'));
+      eStatus(ok ? 'تم حفظ التعديل.' : 'تم إنشاء الملف لكنه لم يُحفظ. اضغط حفظ التعديل للمحاولة مرة أخرى.');
+    } catch (e) { eStatus('تعذّر إنشاء الملف. جرّب بصفحات أقل.', true); }
+    btn.disabled = eEntries.length === 0;
+  }
+  $('eFile').addEventListener('change', function(e){ eLoad(e.target.files); e.target.value = ''; });
+  wireDrop('eDrop', eLoad);
+  $('eAddBtn').addEventListener('click', function(){ $('eImgs').click(); });
+  $('eImgs').addEventListener('change', function(e){ eAddImages(e.target.files); e.target.value = ''; });
+  $('eGo').addEventListener('click', eSave);
+  eRender();
+
   refreshState();
 })();
 </script>
